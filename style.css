@@ -1,7 +1,7 @@
 body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
-  background: #f3f5f7;
+  background: #eef2f6;
   color: #1f2933;
 }
 
@@ -9,7 +9,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 24px;
-  max-width: 1200px;
+  max-width: 1250px;
   margin: auto;
   padding: 24px;
 }
@@ -17,13 +17,13 @@ body {
 .search-panel,
 .route-panel {
   background: white;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 22px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.08);
 }
 
 h1 {
-  margin-bottom: 4px;
+  margin: 0 0 6px;
   color: #004b87;
 }
 
@@ -32,19 +32,40 @@ p {
   color: #5b6773;
 }
 
-input {
+input,
+select {
   width: 100%;
   box-sizing: border-box;
-  padding: 15px;
-  font-size: 18px;
+  padding: 14px;
+  font-size: 16px;
   border: 1px solid #ccd3da;
   border-radius: 10px;
-  margin: 16px 0;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+#search {
+  margin: 18px 0 12px;
+  font-size: 18px;
+}
+
+#counter {
+  margin: 10px 0;
+  color: #5b6773;
+  font-size: 14px;
 }
 
 .result {
-  padding: 14px;
-  border-bottom: 1px solid #e5e9ee;
+  padding: 16px;
+  border: 1px solid #e3e8ee;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  background: #fbfcfd;
 }
 
 .result strong {
@@ -52,7 +73,7 @@ input {
 }
 
 .meta {
-  margin: 4px 0 10px;
+  margin: 6px 0 12px;
   color: #5b6773;
 }
 
@@ -104,5 +125,9 @@ button:hover,
   .app {
     grid-template-columns: 1fr;
     padding: 12px;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
   }
 }
