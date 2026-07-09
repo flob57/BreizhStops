@@ -1,6 +1,9 @@
 let stops = [];
 let routeStops = [];
 let currentResults = [];
+let map;
+let markersLayer;
+let markerById = new Map();
 
 const searchInput = document.getElementById("search");
 const resultsEl = document.getElementById("results");
@@ -10,6 +13,7 @@ const openRouteBtn = document.getElementById("openRoute");
 const clearRouteBtn = document.getElementById("clearRoute");
 const networkFilter = document.getElementById("networkFilter");
 const cityFilter = document.getElementById("cityFilter");
+const statusEl = document.getElementById("status");
 
 function normalize(text) {
   return String(text || "")
@@ -18,15 +22,28 @@ function normalize(text) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function initMap() {
+  map = L.map("map").setView([48.2, -3.2], 8);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  markersLayer = L.layerGroup().addTo(map);
+}
+
 async function loadStops() {
-  resultsEl.innerHTML = "<p>Chargement des arrêts...</p>";
+  statusEl.textContent = "Chargement des arrêts...";
 
   const response = await fetch("data/stops.json");
   stops = await response.json();
 
   populateFilters();
+  initMap();
+  refreshSearch();
 
-  resultsEl.innerHTML = `<p>${stops.length} arrêts chargés. Commence à taper pour rechercher.</p>`;
+  statusEl.textContent = `${stops.length} arrêts chargés`;
 }
 
 function populateFilters() {
@@ -52,59 +69,115 @@ function refreshSearch() {
   const query = normalize(searchInput.value.trim());
   const selectedNetwork = networkFilter.value;
   const selectedCity = cityFilter.value;
-
   const words = query.split(/\s+/).filter(Boolean);
 
-  let matches = stops.filter(stop => {
+  const matches = stops.filter(stop => {
     if (selectedNetwork && stop.reseau !== selectedNetwork) return false;
     if (selectedCity && stop.commune !== selectedCity) return false;
 
     if (words.length === 0) return selectedNetwork || selectedCity;
 
-    const haystack = normalize(
-      `${stop.nom || ""} ${stop.commune || ""} ${stop.reseau || ""}`
-    );
-
+    const haystack = normalize(`${stop.nom || ""} ${stop.commune || ""} ${stop.reseau || ""}`);
     return words.every(word => haystack.includes(word));
   });
 
-  currentResults = matches.slice(0, 80);
+  currentResults = matches.slice(0, 100);
+
   displayResults(currentResults, matches.length);
+  displayMarkers(currentResults);
 }
 
 function displayResults(results, total) {
-  counterEl.textContent = `${total} résultat(s) trouvé(s). ${total > results.length ? "Affichage des 80 premiers." : ""}`;
+  counterEl.textContent = `${total} résultat(s). ${total > results.length ? "Affichage des 100 premiers." : ""}`;
 
   if (results.length === 0) {
     resultsEl.innerHTML = "<p>Aucun arrêt trouvé.</p>";
+    markersLayer.clearLayers();
     return;
   }
 
   resultsEl.innerHTML = results.map((stop, index) => `
     <div class="result">
       <strong>🚏 ${stop.nom || "Arrêt sans nom"}</strong>
-
       <div class="meta">
         📍 ${stop.commune || "Commune inconnue"}
         ${stop.reseau ? ` — 🚌 ${stop.reseau}` : ""}
       </div>
 
+      <button onclick="zoomToStop(${index})">Voir sur la carte</button>
+
       <a class="map-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}">
         Google Maps
       </a>
 
-      <button onclick="addToRoute(${index})">
-        Ajouter à l’itinéraire
-      </button>
+      <button onclick="addToRoute(${index})">Ajouter</button>
     </div>
   `).join("");
+}
+
+function displayMarkers(results) {
+  markersLayer.clearLayers();
+  markerById.clear();
+
+  const bounds = [];
+
+  results.forEach((stop, index) => {
+    if (!stop.lat || !stop.lon) return;
+
+    const marker = L.marker([stop.lat, stop.lon]);
+
+    marker.bindPopup(`
+      <div class="popup-title">🚏 ${stop.nom || "Arrêt sans nom"}</div>
+      <div>📍 ${stop.commune || "Commune inconnue"}</div>
+      <div>🚌 ${stop.reseau || "Réseau inconnu"}</div>
+      <br>
+      <a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}">Google Maps</a>
+      <br><br>
+      <button onclick="addStopById('${String(stop.id).replace(/'/g, "\\'")}')">Ajouter à l’itinéraire</button>
+    `);
+
+    marker.addTo(markersLayer);
+    markerById.set(stop.id, marker);
+    bounds.push([stop.lat, stop.lon]);
+  });
+
+  if (bounds.length === 1) {
+    map.setView(bounds[0], 16);
+  } else if (bounds.length > 1 && results.length <= 100) {
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }
+}
+
+function zoomToStop(index) {
+  const stop = currentResults[index];
+  if (!stop) return;
+
+  const marker = markerById.get(stop.id);
+
+  map.setView([stop.lat, stop.lon], 16);
+
+  if (marker) {
+    marker.openPopup();
+  }
+}
+
+function addStopById(id) {
+  const stop = stops.find(s => String(s.id) === String(id));
+  if (!stop) return;
+
+  const alreadyAdded = routeStops.some(s => String(s.id) === String(stop.id));
+
+  if (!alreadyAdded) {
+    routeStops.push(stop);
+    updateRoute();
+  }
 }
 
 function addToRoute(index) {
   const stop = currentResults[index];
   if (!stop) return;
 
-  const alreadyAdded = routeStops.some(s => s.id === stop.id);
+  const alreadyAdded = routeStops.some(s => String(s.id) === String(stop.id));
 
   if (!alreadyAdded) {
     routeStops.push(stop);
@@ -114,13 +187,13 @@ function addToRoute(index) {
 
 function updateRoute() {
   if (routeStops.length === 0) {
-    routeListEl.className = "route-list empty";
+    routeListEl.className = "empty";
     routeListEl.innerHTML = "Aucun arrêt ajouté.";
     openRouteBtn.disabled = true;
     return;
   }
 
-  routeListEl.className = "route-list";
+  routeListEl.className = "";
   routeListEl.innerHTML = routeStops.map((stop, index) => `
     <div class="route-item">
       ${index + 1}. <strong>${stop.nom}</strong><br>
@@ -143,7 +216,6 @@ function openGoogleRoute() {
 
   const points = routeStops.map(stop => `${stop.lat},${stop.lon}`);
   const url = `https://www.google.com/maps/dir/${points.join("/")}`;
-
   window.open(url, "_blank");
 }
 
