@@ -1,11 +1,15 @@
 let stops = [];
 let routeStops = [];
+let currentResults = [];
 
 const searchInput = document.getElementById("search");
 const resultsEl = document.getElementById("results");
+const counterEl = document.getElementById("counter");
 const routeListEl = document.getElementById("routeList");
 const openRouteBtn = document.getElementById("openRoute");
 const clearRouteBtn = document.getElementById("clearRoute");
+const networkFilter = document.getElementById("networkFilter");
+const cityFilter = document.getElementById("cityFilter");
 
 function normalize(text) {
   return String(text || "")
@@ -20,32 +24,57 @@ async function loadStops() {
   const response = await fetch("data/stops.json");
   stops = await response.json();
 
+  populateFilters();
+
   resultsEl.innerHTML = `<p>${stops.length} arrêts chargés. Commence à taper pour rechercher.</p>`;
 }
 
-function searchStops(query) {
-  const q = normalize(query.trim());
+function populateFilters() {
+  const networks = [...new Set(stops.map(s => s.reseau).filter(Boolean))].sort();
+  const cities = [...new Set(stops.map(s => s.commune).filter(Boolean))].sort();
 
-  if (q.length < 2) {
-    resultsEl.innerHTML = "<p>Entre au moins 2 caractères.</p>";
-    return;
-  }
+  networks.forEach(network => {
+    const option = document.createElement("option");
+    option.value = network;
+    option.textContent = network;
+    networkFilter.appendChild(option);
+  });
 
-  const words = q.split(/\s+/);
-
-  const matches = stops
-    .filter(stop => {
-      const haystack = normalize(
-        `${stop.nom || ""} ${stop.commune || ""} ${stop.reseau || ""}`
-      );
-      return words.every(word => haystack.includes(word));
-    })
-    .slice(0, 50);
-
-  displayResults(matches);
+  cities.forEach(city => {
+    const option = document.createElement("option");
+    option.value = city;
+    option.textContent = city;
+    cityFilter.appendChild(option);
+  });
 }
 
-function displayResults(results) {
+function refreshSearch() {
+  const query = normalize(searchInput.value.trim());
+  const selectedNetwork = networkFilter.value;
+  const selectedCity = cityFilter.value;
+
+  const words = query.split(/\s+/).filter(Boolean);
+
+  let matches = stops.filter(stop => {
+    if (selectedNetwork && stop.reseau !== selectedNetwork) return false;
+    if (selectedCity && stop.commune !== selectedCity) return false;
+
+    if (words.length === 0) return selectedNetwork || selectedCity;
+
+    const haystack = normalize(
+      `${stop.nom || ""} ${stop.commune || ""} ${stop.reseau || ""}`
+    );
+
+    return words.every(word => haystack.includes(word));
+  });
+
+  currentResults = matches.slice(0, 80);
+  displayResults(currentResults, matches.length);
+}
+
+function displayResults(results, total) {
+  counterEl.textContent = `${total} résultat(s) trouvé(s). ${total > results.length ? "Affichage des 80 premiers." : ""}`;
+
   if (results.length === 0) {
     resultsEl.innerHTML = "<p>Aucun arrêt trouvé.</p>";
     return;
@@ -53,7 +82,8 @@ function displayResults(results) {
 
   resultsEl.innerHTML = results.map((stop, index) => `
     <div class="result">
-      <strong>${stop.nom || "Arrêt sans nom"}</strong>
+      <strong>🚏 ${stop.nom || "Arrêt sans nom"}</strong>
+
       <div class="meta">
         📍 ${stop.commune || "Commune inconnue"}
         ${stop.reseau ? ` — 🚌 ${stop.reseau}` : ""}
@@ -63,18 +93,15 @@ function displayResults(results) {
         Google Maps
       </a>
 
-      <button onclick="addToRoute(${index})" data-stop-id="${stop.id}">
-        Ajouter
+      <button onclick="addToRoute(${index})">
+        Ajouter à l’itinéraire
       </button>
     </div>
   `).join("");
-
-  window.currentResults = results;
 }
 
 function addToRoute(index) {
-  const stop = window.currentResults[index];
-
+  const stop = currentResults[index];
   if (!stop) return;
 
   const alreadyAdded = routeStops.some(s => s.id === stop.id);
@@ -98,6 +125,7 @@ function updateRoute() {
     <div class="route-item">
       ${index + 1}. <strong>${stop.nom}</strong><br>
       ${stop.commune || ""}
+      <br>
       <button class="secondary" onclick="removeFromRoute(${index})">Retirer</button>
     </div>
   `).join("");
@@ -119,9 +147,9 @@ function openGoogleRoute() {
   window.open(url, "_blank");
 }
 
-searchInput.addEventListener("input", () => {
-  searchStops(searchInput.value);
-});
+searchInput.addEventListener("input", refreshSearch);
+networkFilter.addEventListener("change", refreshSearch);
+cityFilter.addEventListener("change", refreshSearch);
 
 openRouteBtn.addEventListener("click", openGoogleRoute);
 
