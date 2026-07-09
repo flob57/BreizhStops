@@ -14,6 +14,17 @@
 
       <input id="search" type="text" placeholder="Rechercher un arrêt, une commune, un réseau..." autocomplete="off" />
 
+      <div class="filters">
+        <select id="networkFilter">
+          <option value="">Tous les réseaux</option>
+        </select>
+
+        <select id="cityFilter">
+          <option value="">Toutes les communes</option>
+        </select>
+      </div>
+
+      <div id="counter"></div>
       <div id="results"></div>
     </section>
 
@@ -21,7 +32,7 @@
       <h2>Mon itinéraire</h2>
       <div id="routeList" class="route-list empty">Aucun arrêt ajouté.</div>
 
-      <button id="openRoute" disabled>Ouvrir l’itinéraire dans Google Maps</button>
+      <button id="openRoute" disabled>Ouvrir dans Google Maps</button>
       <button id="clearRoute" class="secondary">Vider</button>
     </aside>
   </main>
