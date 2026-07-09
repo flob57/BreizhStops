@@ -45,7 +45,7 @@ function toCSV(headers, rows) {
 }
 
 async function getCommune(lat, lon) {
-  const url = `${API_URL}?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&type=municipality`;
+  const url = `${API_URL}?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&fields=nom,code,departement,region&format=json`;
 
   try {
     const response = await fetch(url);
@@ -62,7 +62,7 @@ async function getCommune(lat, lon) {
 
     const data = await response.json();
 
-    if (!data.features || data.features.length === 0) {
+    if (!data || data.length === 0) {
       return {
         commune: "",
         code_insee: "",
@@ -71,6 +71,27 @@ async function getCommune(lat, lon) {
         erreur: "Aucun résultat"
       };
     }
+
+    const commune = data[0];
+
+    return {
+      commune: commune.nom || "",
+      code_insee: commune.code || "",
+      departement: commune.departement?.nom || "",
+      region: commune.region?.nom || "",
+      erreur: ""
+    };
+
+  } catch (error) {
+    return {
+      commune: "",
+      code_insee: "",
+      departement: "",
+      region: "",
+      erreur: error.message
+    };
+  }
+}
 
     const props = data.features[0].properties || {};
 
