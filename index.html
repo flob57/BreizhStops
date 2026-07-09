@@ -1,28 +1,31 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arrêts Bretagne</title>
-
-<link rel="stylesheet" href="style.css">
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arrêts Bretagne</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
+  <main class="app">
+    <section class="search-panel">
+      <h1>🚍 Arrêts Bretagne</h1>
+      <p>Recherche d’arrêts urbains et interurbains</p>
 
-<h1>🚍 Arrêts Bretagne</h1>
+      <input id="search" type="text" placeholder="Rechercher un arrêt, une commune, un réseau..." autocomplete="off" />
 
-<p>Le moteur de recherche est en cours de construction.</p>
+      <div id="results"></div>
+    </section>
 
-<input
-type="text"
-placeholder="Rechercher un arrêt..."
-id="search">
+    <aside class="route-panel">
+      <h2>Mon itinéraire</h2>
+      <div id="routeList" class="route-list empty">Aucun arrêt ajouté.</div>
 
-<div id="results"></div>
+      <button id="openRoute" disabled>Ouvrir l’itinéraire dans Google Maps</button>
+      <button id="clearRoute" class="secondary">Vider</button>
+    </aside>
+  </main>
 
-<script src="app.js"></script>
-
+  <script src="app.js"></script>
 </body>
 </html>
