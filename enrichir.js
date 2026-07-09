@@ -2,7 +2,7 @@ const fileInput = document.getElementById("csvFile");
 const startBtn = document.getElementById("startBtn");
 const statusEl = document.getElementById("status");
 
-const API_URL = "https://api-adresse.data.gouv.fr/reverse/";
+const API_URL = "https://geo.api.gouv.fr/communes";
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
