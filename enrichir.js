@@ -34,14 +34,10 @@ function toCSV(headers, rows) {
     return str;
   };
 
-  const csvLines = [];
-  csvLines.push(headers.join(";"));
-
-  rows.forEach(row => {
-    csvLines.push(headers.map(h => escapeValue(row[h])).join(";"));
-  });
-
-  return csvLines.join("\n");
+  return [
+    headers.join(";"),
+    ...rows.map(row => headers.map(h => escapeValue(row[h])).join(";"))
+  ].join("\n");
 }
 
 async function getCommune(lat, lon) {
@@ -72,34 +68,13 @@ async function getCommune(lat, lon) {
       };
     }
 
-    const commune = data[0];
+    const c = data[0];
 
     return {
-      commune: commune.nom || "",
-      code_insee: commune.code || "",
-      departement: commune.departement?.nom || "",
-      region: commune.region?.nom || "",
-      erreur: ""
-    };
-
-  } catch (error) {
-    return {
-      commune: "",
-      code_insee: "",
-      departement: "",
-      region: "",
-      erreur: error.message
-    };
-  }
-}
-
-    const props = data.features[0].properties || {};
-
-    return {
-      commune: props.city || props.name || "",
-      code_insee: props.citycode || "",
-      departement: props.context ? props.context.split(",")[0].trim() : "",
-      region: props.context ? props.context.split(",").slice(-1)[0].trim() : "",
+      commune: c.nom || "",
+      code_insee: c.code || "",
+      departement: c.departement?.nom || "",
+      region: c.region?.nom || "",
       erreur: ""
     };
 
@@ -142,15 +117,6 @@ startBtn.addEventListener("click", async () => {
   const text = await file.text();
   const { headers, rows } = parseCSV(text);
 
-  const requiredColumns = ["stop_id", "stop_name", "stop_lat", "stop_lon"];
-
-  for (const col of requiredColumns) {
-    if (!headers.includes(col)) {
-      alert(`Colonne manquante : ${col}`);
-      return;
-    }
-  }
-
   const newHeaders = [...headers];
 
   ["commune", "code_insee", "departement", "region", "erreur_geocodage"].forEach(col => {
@@ -161,34 +127,20 @@ startBtn.addEventListener("click", async () => {
 
   startBtn.disabled = true;
 
-  const cache = new Map();
-
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
 
-    const lat = row.stop_lat;
-    const lon = row.stop_lon;
-    const key = `${lat},${lon}`;
+    statusEl.textContent = `Traitement ${i + 1} / ${rows.length} : ${row.stop_name}`;
 
-    statusEl.textContent = `Traitement ${i + 1} / ${rows.length} : ${row.stop_name || ""}`;
-
-    let info;
-
-    if (cache.has(key)) {
-      info = cache.get(key);
-    } else {
-      info = await getCommune(lat, lon);
-      cache.set(key, info);
-
-      // Petite pause volontaire pour ne pas brutaliser l'API publique.
-      await sleep(120);
-    }
+    const info = await getCommune(row.stop_lat, row.stop_lon);
 
     row.commune = info.commune;
     row.code_insee = info.code_insee;
     row.departement = info.departement;
     row.region = info.region;
     row.erreur_geocodage = info.erreur;
+
+    await sleep(120);
   }
 
   const output = toCSV(newHeaders, rows);
