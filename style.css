@@ -1,0 +1,23 @@
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    max-width:900px;
+    margin:auto;
+    padding:40px;
+    background:#f4f4f4;
+}
+
+h1{
+    color:#004b87;
+}
+
+input{
+    width:100%;
+    padding:14px;
+    font-size:18px;
+    border-radius:8px;
+    border:1px solid #bbb;
+}
+
+#results{
+    margin-top:20px;
+}
