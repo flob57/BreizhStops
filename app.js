@@ -16,6 +16,7 @@ const counterEl = document.getElementById("counter");
 const routeListEl = document.getElementById("routeList");
 const openRouteBtn = document.getElementById("openRoute");
 const openInRouteBtn = document.getElementById("openInRoute");
+const exportGpxBtn = document.getElementById("exportGpx");
 const optimizeRouteBtn = document.getElementById("optimizeRoute");
 const clearRouteBtn = document.getElementById("clearRoute");
 
@@ -78,7 +79,7 @@ async function loadStops() {
     stops = await response.json();
 
     initMap();
-    updateLinkedFilters();
+    LinkedFilters();
     refreshSearch();
     updateRoute();
 
@@ -473,6 +474,7 @@ function updateRoute() {
   optimizeRouteBtn.disabled = !enoughStops;
   openRouteBtn.disabled = !enoughStops;
   openInRouteBtn.disabled = !enoughStops;
+  exportGpxBtn.disabled = !enoughStops;
 }
 
 function handleDepartureModeChange() {
@@ -969,6 +971,110 @@ async function openInRoute() {
   }
 }
 
+function escapeXml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function createGpx(points) {
+  const routePoints = points.map((point, index) => {
+    const name = point.nom || `Étape ${index + 1}`;
+    const descriptionParts = [];
+
+    if (point.commune) {
+      descriptionParts.push(point.commune);
+    }
+
+    if (point.reseau) {
+      descriptionParts.push(`Réseau ${point.reseau}`);
+    }
+
+    const description = descriptionParts.join(" — ");
+
+    return `
+    <rtept lat="${Number(point.lat)}" lon="${Number(point.lon)}">
+      <name>${escapeXml(name)}</name>
+      <desc>${escapeXml(description)}</desc>
+    </rtept>`;
+  }).join("");
+
+  const creationDate = new Date().toISOString();
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx
+  version="1.1"
+  creator="BreizhStops"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd"
+>
+  <metadata>
+    <name>Itinéraire BreizhStops</name>
+    <desc>Itinéraire personnalisé créé avec BreizhStops</desc>
+    <time>${creationDate}</time>
+  </metadata>
+
+  <rte>
+    <name>Itinéraire BreizhStops</name>
+    <desc>${points.length} points</desc>
+    ${routePoints}
+  </rte>
+</gpx>`;
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob(
+    [content],
+    { type: mimeType }
+  );
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
+}
+
+function createGpxFilename() {
+  const date = new Date();
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `breizhstops-${year}-${month}-${day}-${hours}${minutes}.gpx`;
+}
+
+async function exportGpx() {
+  try {
+    const points = await buildOrderedRoute(true);
+
+    const gpxContent = createGpx(points);
+    const filename = createGpxFilename();
+
+    downloadFile(
+      gpxContent,
+      filename,
+      "application/gpx+xml;charset=utf-8"
+    );
+  } catch (error) {
+    alert(error.message);
+  }
+}
 document
   .querySelectorAll(
     'input[name="departureMode"]'
@@ -1013,6 +1119,11 @@ openRouteBtn.addEventListener(
 openInRouteBtn.addEventListener(
   "click",
   openInRoute
+);
+
+exportGpxBtn.addEventListener(
+  "click",
+  exportGpx
 );
 
 clearRouteBtn.addEventListener(
