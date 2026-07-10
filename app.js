@@ -1148,21 +1148,7 @@ clearRouteBtn.addEventListener(
 
 handleDepartureModeChange();
 loadStops();
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      await navigator.serviceWorker.register(
-        "/service-worker.js"
-      );
 
-      console.log(
-        "Service worker BreizhStops enregistré."
-      );
-    } catch (error) {
-      console.error(
-        "Impossible d’enregistrer le service worker :",
-        error
-      );
     }
   });
 }
