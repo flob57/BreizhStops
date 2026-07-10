@@ -70,7 +70,9 @@ async function loadStops() {
   try {
     statusEl.textContent = "Chargement des arrêts...";
 
-    const response = await fetch("data/stops.json");
+    const response = await fetch("./data/stops.json", {
+  cache: "no-store"
+});
 
     if (!response.ok) {
       throw new Error(`Erreur HTTP ${response.status}`);
