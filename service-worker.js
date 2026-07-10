@@ -1,4 +1,4 @@
-const CACHE_VERSION = "breizhstops-v1";
+const CACHE_VERSION = "breizhstops-v2";
 
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DATA_CACHE = `${CACHE_VERSION}-data`;
@@ -11,15 +11,11 @@ const STATIC_FILES = [
   "/manifest.webmanifest"
 ];
 
-const DATA_FILES = [
-  "/data/stops.json"
-];
-
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then(cache => cache.addAll(STATIC_FILES))
+    caches.open(STATIC_CACHE).then(cache => {
+      return cache.addAll(STATIC_FILES);
+    })
   );
 
   self.skipWaiting();
@@ -30,12 +26,7 @@ self.addEventListener("activate", event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames
-          .filter(cacheName => {
-            return (
-              cacheName !== STATIC_CACHE &&
-              cacheName !== DATA_CACHE
-            );
-          })
+          .filter(cacheName => !cacheName.startsWith(CACHE_VERSION))
           .map(cacheName => caches.delete(cacheName))
       );
     })
@@ -56,13 +47,73 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  if (url.pathname === "/data/stops.json") {
-    event.respondWith(networkFirstData(request));
+  if (url.pathname.endsWith("/data/stops.json")) {
+    event.respondWith(networkFirstStops(request));
+    return;
+  }
+
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirstPage(request));
     return;
   }
 
   event.respondWith(cacheFirst(request));
 });
+
+async function networkFirstStops(request) {
+  try {
+    const response = await fetch(request, {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP ${response.status}`);
+    }
+
+    const cache = await caches.open(DATA_CACHE);
+    await cache.put(request, response.clone());
+
+    return response;
+  } catch (error) {
+    console.warn(
+      "Impossible de récupérer stops.json en ligne, utilisation du cache.",
+      error
+    );
+
+    const cachedResponse = await caches.match(request);
+
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "Données des arrêts indisponibles"
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+}
+
+async function networkFirstPage(request) {
+  try {
+    const response = await fetch(request);
+
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (error) {
+    return caches.match("/index.html");
+  }
+}
 
 async function cacheFirst(request) {
   const cachedResponse = await caches.match(request);
@@ -71,41 +122,12 @@ async function cacheFirst(request) {
     return cachedResponse;
   }
 
-  try {
-    const networkResponse = await fetch(request);
+  const response = await fetch(request);
 
-    if (networkResponse.ok) {
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
-  } catch (error) {
-    if (request.mode === "navigate") {
-      return caches.match("/index.html");
-    }
-
-    throw error;
+  if (response.ok) {
+    const cache = await caches.open(STATIC_CACHE);
+    await cache.put(request, response.clone());
   }
-}
 
-async function networkFirstData(request) {
-  try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
-      const cache = await caches.open(DATA_CACHE);
-      cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
-  } catch (error) {
-    const cachedResponse = await caches.match(request);
-
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    throw error;
-  }
+  return response;
 }
