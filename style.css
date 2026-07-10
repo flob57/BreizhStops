@@ -1,36 +1,87 @@
-# BreizhStops
+const CACHE_NAME = "breizhstops-shell-v3";
 
-BreizhStops est une application web de recherche d'arrêts de transport en Bretagne.
+const SHELL_FILES = [
+  "/",
+  "/index.html",
+  "/style.css",
+  "/app.js",
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png"
+];
 
-## Fonctions incluses
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.addAll(SHELL_FILES);
+    })
+  );
 
-- recherche par arrêt, commune ou réseau ;
-- filtres réseau et commune liés ;
-- carte Leaflet ;
-- création d'itinéraires ;
-- optimisation des étapes ;
-- Google Maps ;
-- inRoute ;
-- export GPX ;
-- installation comme PWA.
+  self.skipWaiting();
+});
 
-## Mise en ligne sur GitHub et Cloudflare Pages
+self.addEventListener("activate", event => {
+  event.waitUntil(
+    caches.keys().then(names => {
+      return Promise.all(
+        names
+          .filter(name => name !== CACHE_NAME)
+          .map(name => caches.delete(name))
+      );
+    })
+  );
 
-1. Décompresser l'archive.
-2. Copier tous les fichiers dans le dépôt GitHub BreizhStops.
-3. Remplacer les anciens fichiers quand GitHub le demande.
-4. Faire un commit.
-5. Attendre le redéploiement Cloudflare Pages.
-6. Recharger le site avec Ctrl + F5.
+  self.clients.claim();
+});
 
-## Vérification
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  const url = new URL(request.url);
 
-Le bandeau supérieur doit afficher le nombre d'arrêts chargés.
+  if (request.method !== "GET") {
+    return;
+  }
 
-## Mise à jour des données
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
-Pour mettre à jour les arrêts, remplacer uniquement :
+  /*
+   * Important :
+   * stops.json n'est jamais mis en cache par le service worker.
+   * Le navigateur reçoit toujours la version publiée sur Cloudflare.
+   */
+  if (url.pathname === "/data/stops.json") {
+    event.respondWith(fetch(request));
+    return;
+  }
 
-`data/stops.json`
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
 
-Puis faire un nouveau commit. Cloudflare republiera automatiquement le site.
+  event.respondWith(
+    caches.match(request).then(cached => {
+      if (cached) {
+        return cached;
+      }
+
+      return fetch(request).then(response => {
+        if (!response || !response.ok) {
+          return response;
+        }
+
+        const copy = response.clone();
+
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(request, copy);
+        });
+
+        return response;
+      });
+    })
+  );
+});
