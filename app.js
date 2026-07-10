@@ -1,6 +1,10 @@
 let stops = [];
 let routeStops = [];
 let currentResults = [];
+
+let selectedStartStop = null;
+let currentPosition = null;
+
 let map;
 let markersLayer;
 let markerById = new Map();
@@ -8,12 +12,22 @@ let markerById = new Map();
 const searchInput = document.getElementById("search");
 const resultsEl = document.getElementById("results");
 const counterEl = document.getElementById("counter");
+
 const routeListEl = document.getElementById("routeList");
 const openRouteBtn = document.getElementById("openRoute");
+const openInRouteBtn = document.getElementById("openInRoute");
+const optimizeRouteBtn = document.getElementById("optimizeRoute");
 const clearRouteBtn = document.getElementById("clearRoute");
+
 const networkFilter = document.getElementById("networkFilter");
 const cityFilter = document.getElementById("cityFilter");
 const statusEl = document.getElementById("status");
+
+const startStopArea = document.getElementById("startStopArea");
+const startStopSearch = document.getElementById("startStopSearch");
+const startStopResults = document.getElementById("startStopResults");
+const selectedStartStopEl = document.getElementById("selectedStartStop");
+const locationStatus = document.getElementById("locationStatus");
 
 function normalize(text) {
   return String(text || "")
@@ -22,31 +36,67 @@ function normalize(text) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function escapeHtml(text) {
+  return String(text || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getDepartureMode() {
+  return document.querySelector(
+    'input[name="departureMode"]:checked'
+  ).value;
+}
+
 function initMap() {
   map = L.map("map").setView([48.2, -3.2], 8);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap"
-  }).addTo(map);
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }
+  ).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
 }
 
 async function loadStops() {
-  statusEl.textContent = "Chargement des arrêts...";
+  try {
+    statusEl.textContent = "Chargement des arrêts...";
 
-  const response = await fetch("data/stops.json");
-  stops = await response.json();
+    const response = await fetch("data/stops.json");
 
-  initMap();
-  updateLinkedFilters();
-  refreshSearch();
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP ${response.status}`);
+    }
 
-  statusEl.textContent = `${stops.length} arrêts chargés`;
+    stops = await response.json();
+
+    initMap();
+    updateLinkedFilters();
+    refreshSearch();
+    updateRoute();
+
+    statusEl.textContent = `${stops.length} arrêts chargés`;
+  } catch (error) {
+    console.error(error);
+    statusEl.textContent = "Erreur de chargement";
+    resultsEl.innerHTML =
+      "<p>Impossible de charger les arrêts.</p>";
+  }
 }
 
-function fillSelect(select, defaultLabel, values, selectedValue) {
+function fillSelect(
+  select,
+  defaultLabel,
+  values,
+  selectedValue
+) {
   select.innerHTML = "";
 
   const defaultOption = document.createElement("option");
@@ -74,20 +124,37 @@ function updateLinkedFilters() {
 
   const availableCities = [...new Set(
     stops
-      .filter(stop => !selectedNetwork || stop.reseau === selectedNetwork)
+      .filter(stop =>
+        !selectedNetwork ||
+        stop.reseau === selectedNetwork
+      )
       .map(stop => stop.commune)
       .filter(Boolean)
-  )].sort();
+  )].sort((a, b) => a.localeCompare(b, "fr"));
 
   const availableNetworks = [...new Set(
     stops
-      .filter(stop => !selectedCity || stop.commune === selectedCity)
+      .filter(stop =>
+        !selectedCity ||
+        stop.commune === selectedCity
+      )
       .map(stop => stop.reseau)
       .filter(Boolean)
-  )].sort();
+  )].sort((a, b) => a.localeCompare(b, "fr"));
 
-  fillSelect(cityFilter, "Toutes les communes", availableCities, selectedCity);
-  fillSelect(networkFilter, "Tous les réseaux", availableNetworks, selectedNetwork);
+  fillSelect(
+    cityFilter,
+    "Toutes les communes",
+    availableCities,
+    selectedCity
+  );
+
+  fillSelect(
+    networkFilter,
+    "Tous les réseaux",
+    availableNetworks,
+    selectedNetwork
+  );
 }
 
 function refreshSearch() {
@@ -99,18 +166,33 @@ function refreshSearch() {
   const words = query.split(/\s+/).filter(Boolean);
 
   const matches = stops.filter(stop => {
-    if (selectedNetwork && stop.reseau !== selectedNetwork) return false;
-    if (selectedCity && stop.commune !== selectedCity) return false;
+    if (
+      selectedNetwork &&
+      stop.reseau !== selectedNetwork
+    ) {
+      return false;
+    }
+
+    if (
+      selectedCity &&
+      stop.commune !== selectedCity
+    ) {
+      return false;
+    }
 
     if (words.length === 0) {
-      return selectedNetwork || selectedCity;
+      return Boolean(selectedNetwork || selectedCity);
     }
 
     const haystack = normalize(
-      `${stop.nom || ""} ${stop.commune || ""} ${stop.reseau || ""}`
+      `${stop.nom || ""} ` +
+      `${stop.commune || ""} ` +
+      `${stop.reseau || ""}`
     );
 
-    return words.every(word => haystack.includes(word));
+    return words.every(word =>
+      haystack.includes(word)
+    );
   });
 
   currentResults = matches.slice(0, 100);
@@ -120,34 +202,60 @@ function refreshSearch() {
 }
 
 function displayResults(results, total) {
-  counterEl.textContent = `${total} résultat(s). ${
-    total > results.length ? "Affichage des 100 premiers." : ""
-  }`;
+  counterEl.textContent =
+    `${total} résultat(s). ` +
+    `${total > results.length
+      ? "Affichage des 100 premiers."
+      : ""}`;
 
   if (results.length === 0) {
-    resultsEl.innerHTML = "<p>Aucun arrêt trouvé.</p>";
+    resultsEl.innerHTML =
+      "<p>Aucun arrêt trouvé.</p>";
+
     markersLayer.clearLayers();
     return;
   }
 
-  resultsEl.innerHTML = results.map((stop, index) => `
-    <div class="result">
-      <strong>🚏 ${stop.nom || "Arrêt sans nom"}</strong>
+  resultsEl.innerHTML = results.map(
+    (stop, index) => `
+      <div class="result">
 
-      <div class="meta">
-        📍 ${stop.commune || "Commune inconnue"}
-        ${stop.reseau ? ` — 🚌 ${stop.reseau}` : ""}
+        <strong>
+          🚏 ${escapeHtml(
+            stop.nom || "Arrêt sans nom"
+          )}
+        </strong>
+
+        <div class="meta">
+          📍 ${escapeHtml(
+            stop.commune || "Commune inconnue"
+          )}
+
+          ${stop.reseau
+            ? ` — 🚌 ${escapeHtml(stop.reseau)}`
+            : ""}
+        </div>
+
+        <button onclick="zoomToStop(${index})">
+          Voir sur la carte
+        </button>
+
+        <a
+          class="map-link"
+          target="_blank"
+          rel="noopener"
+          href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}"
+        >
+          Google Maps
+        </a>
+
+        <button onclick="addToRoute(${index})">
+          Ajouter
+        </button>
+
       </div>
-
-      <button onclick="zoomToStop(${index})">Voir sur la carte</button>
-
-      <a class="map-link" target="_blank" href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}">
-        Google Maps
-      </a>
-
-      <button onclick="addToRoute(${index})">Ajouter</button>
-    </div>
-  `).join("");
+    `
+  ).join("");
 }
 
 function displayMarkers(results) {
@@ -157,43 +265,97 @@ function displayMarkers(results) {
   const bounds = [];
 
   results.forEach(stop => {
-    if (!stop.lat || !stop.lon) return;
+    if (
+      !Number.isFinite(Number(stop.lat)) ||
+      !Number.isFinite(Number(stop.lon))
+    ) {
+      return;
+    }
 
-    const marker = L.marker([stop.lat, stop.lon]);
+    const marker = L.marker([
+      Number(stop.lat),
+      Number(stop.lon)
+    ]);
 
     marker.bindPopup(`
-      <div class="popup-title">🚏 ${stop.nom || "Arrêt sans nom"}</div>
-      <div>📍 ${stop.commune || "Commune inconnue"}</div>
-      <div>🚌 ${stop.reseau || "Réseau inconnu"}</div>
+      <div class="popup-title">
+        🚏 ${escapeHtml(
+          stop.nom || "Arrêt sans nom"
+        )}
+      </div>
+
+      <div>
+        📍 ${escapeHtml(
+          stop.commune || "Commune inconnue"
+        )}
+      </div>
+
+      <div>
+        🚌 ${escapeHtml(
+          stop.reseau || "Réseau inconnu"
+        )}
+      </div>
+
       <br>
-      <a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}">
+
+      <a
+        target="_blank"
+        rel="noopener"
+        href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}"
+      >
         Google Maps
       </a>
+
       <br><br>
-      <button onclick="addStopById('${String(stop.id).replace(/'/g, "\\'")}')">
+
+      <button
+        onclick="addStopById('${String(stop.id)
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'")}')"
+      >
         Ajouter à l’itinéraire
       </button>
     `);
 
     marker.addTo(markersLayer);
-    markerById.set(String(stop.id), marker);
-    bounds.push([stop.lat, stop.lon]);
+
+    markerById.set(
+      String(stop.id),
+      marker
+    );
+
+    bounds.push([
+      Number(stop.lat),
+      Number(stop.lon)
+    ]);
   });
 
   if (bounds.length === 1) {
     map.setView(bounds[0], 16);
-  } else if (bounds.length > 1 && results.length <= 100) {
-    map.fitBounds(bounds, { padding: [40, 40] });
+  } else if (
+    bounds.length > 1 &&
+    results.length <= 100
+  ) {
+    map.fitBounds(bounds, {
+      padding: [40, 40]
+    });
   }
 }
 
 function zoomToStop(index) {
   const stop = currentResults[index];
+
   if (!stop) return;
 
-  map.setView([stop.lat, stop.lon], 16);
+  map.setView(
+    [Number(stop.lat), Number(stop.lon)],
+    16
+  );
 
-  const marker = markerById.get(String(stop.id));
+  const marker = markerById.get(
+    String(stop.id)
+  );
+
   if (marker) {
     marker.openPopup();
   }
@@ -201,20 +363,27 @@ function zoomToStop(index) {
 
 function addToRoute(index) {
   const stop = currentResults[index];
+
   if (!stop) return;
 
   addStop(stop);
 }
 
 function addStopById(id) {
-  const stop = stops.find(s => String(s.id) === String(id));
+  const stop = stops.find(
+    item => String(item.id) === String(id)
+  );
+
   if (!stop) return;
 
   addStop(stop);
 }
 
 function addStop(stop) {
-  const alreadyAdded = routeStops.some(s => String(s.id) === String(stop.id));
+  const alreadyAdded = routeStops.some(
+    item =>
+      String(item.id) === String(stop.id)
+  );
 
   if (!alreadyAdded) {
     routeStops.push(stop);
@@ -222,59 +391,647 @@ function addStop(stop) {
   }
 }
 
-function updateRoute() {
-  if (routeStops.length === 0) {
-    routeListEl.className = "empty";
-    routeListEl.innerHTML = "Aucun arrêt ajouté.";
-    openRouteBtn.disabled = true;
-    return;
-  }
-
-  routeListEl.className = "";
-
-  routeListEl.innerHTML = routeStops.map((stop, index) => `
-    <div class="route-item">
-      ${index + 1}. <strong>${stop.nom}</strong><br>
-      ${stop.commune || ""}
-      <br>
-      <button class="secondary" onclick="removeFromRoute(${index})">
-        Retirer
-      </button>
-    </div>
-  `).join("");
-
-  openRouteBtn.disabled = routeStops.length < 2;
-}
-
 function removeFromRoute(index) {
   routeStops.splice(index, 1);
   updateRoute();
 }
 
-function openGoogleRoute() {
-  if (routeStops.length < 2) return;
+function moveRouteStop(index, direction) {
+  const targetIndex = index + direction;
 
-  const points = routeStops.map(stop => `${stop.lat},${stop.lon}`);
-  const url = `https://www.google.com/maps/dir/${points.join("/")}`;
+  if (
+    targetIndex < 0 ||
+    targetIndex >= routeStops.length
+  ) {
+    return;
+  }
 
-  window.open(url, "_blank");
+  const temporary = routeStops[index];
+  routeStops[index] = routeStops[targetIndex];
+  routeStops[targetIndex] = temporary;
+
+  updateRoute();
 }
 
-searchInput.addEventListener("input", refreshSearch);
+function updateRoute() {
+  if (routeStops.length === 0) {
+    routeListEl.className = "empty";
+    routeListEl.innerHTML =
+      "Aucun arrêt ajouté.";
+  } else {
+    routeListEl.className = "";
 
-networkFilter.addEventListener("change", () => {
-  refreshSearch();
-});
+    routeListEl.innerHTML = routeStops.map(
+      (stop, index) => `
+        <div class="route-item">
 
-cityFilter.addEventListener("change", () => {
-  refreshSearch();
-});
+          ${index + 1}.
+          <strong>
+            ${escapeHtml(stop.nom)}
+          </strong>
 
-openRouteBtn.addEventListener("click", openGoogleRoute);
+          <br>
 
-clearRouteBtn.addEventListener("click", () => {
-  routeStops = [];
-  updateRoute();
-});
+          ${escapeHtml(stop.commune || "")}
 
+          <div class="route-item-buttons">
+
+            <button
+              onclick="moveRouteStop(${index}, -1)"
+              ${index === 0 ? "disabled" : ""}
+              title="Monter"
+            >
+              ↑
+            </button>
+
+            <button
+              onclick="moveRouteStop(${index}, 1)"
+              ${index === routeStops.length - 1
+                ? "disabled"
+                : ""}
+              title="Descendre"
+            >
+              ↓
+            </button>
+
+            <button
+              class="secondary"
+              onclick="removeFromRoute(${index})"
+            >
+              Retirer
+            </button>
+
+          </div>
+
+        </div>
+      `
+    ).join("");
+  }
+
+  const enoughStops = routeStops.length >= 2;
+
+  optimizeRouteBtn.disabled = !enoughStops;
+  openRouteBtn.disabled = !enoughStops;
+  openInRouteBtn.disabled = !enoughStops;
+}
+
+function handleDepartureModeChange() {
+  const mode = getDepartureMode();
+
+  if (mode === "stop") {
+    startStopArea.classList.remove("hidden");
+
+    locationStatus.textContent =
+      "Choisis l’arrêt qui doit rester en première position.";
+  } else {
+    startStopArea.classList.add("hidden");
+    startStopResults.innerHTML = "";
+
+    if (mode === "current") {
+      locationStatus.textContent =
+        "La position sera demandée lors de la création de l’itinéraire.";
+    }
+
+    if (mode === "automatic") {
+      locationStatus.textContent =
+        "L’ordre complet, y compris le premier arrêt, sera optimisé.";
+    }
+  }
+}
+
+function searchStartStops() {
+  const query = normalize(
+    startStopSearch.value.trim()
+  );
+
+  if (query.length < 2) {
+    startStopResults.innerHTML = "";
+    return;
+  }
+
+  const words = query.split(/\s+/);
+
+  const matches = stops
+    .filter(stop => {
+      const haystack = normalize(
+        `${stop.nom || ""} ` +
+        `${stop.commune || ""} ` +
+        `${stop.reseau || ""}`
+      );
+
+      return words.every(word =>
+        haystack.includes(word)
+      );
+    })
+    .slice(0, 8);
+
+  startStopResults.innerHTML = matches.map(
+    stop => `
+      <div
+        class="start-result"
+        onclick="selectStartStop('${String(stop.id)
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'")}')"
+      >
+        <strong>
+          ${escapeHtml(stop.nom)}
+        </strong>
+
+        <br>
+
+        ${escapeHtml(stop.commune || "")}
+
+        ${stop.reseau
+          ? ` — ${escapeHtml(stop.reseau)}`
+          : ""}
+      </div>
+    `
+  ).join("");
+}
+
+function selectStartStop(id) {
+  const stop = stops.find(
+    item => String(item.id) === String(id)
+  );
+
+  if (!stop) return;
+
+  selectedStartStop = stop;
+
+  selectedStartStopEl.innerHTML = `
+    <div class="selected-start">
+
+      <strong>Départ sélectionné :</strong>
+
+      <br>
+
+      🚏 ${escapeHtml(stop.nom)}
+
+      <br>
+
+      📍 ${escapeHtml(stop.commune || "")}
+
+      <br><br>
+
+      <button
+        class="secondary"
+        onclick="clearSelectedStartStop()"
+      >
+        Modifier
+      </button>
+
+    </div>
+  `;
+
+  startStopResults.innerHTML = "";
+  startStopSearch.value = "";
+}
+
+function clearSelectedStartStop() {
+  selectedStartStop = null;
+  selectedStartStopEl.innerHTML = "";
+  startStopSearch.focus();
+}
+
+function distanceKm(pointA, pointB) {
+  const earthRadius = 6371;
+
+  const lat1 = Number(pointA.lat) * Math.PI / 180;
+  const lat2 = Number(pointB.lat) * Math.PI / 180;
+
+  const deltaLat =
+    (Number(pointB.lat) - Number(pointA.lat)) *
+    Math.PI / 180;
+
+  const deltaLon =
+    (Number(pointB.lon) - Number(pointA.lon)) *
+    Math.PI / 180;
+
+  const value =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) *
+    Math.cos(lat2) *
+    Math.sin(deltaLon / 2) ** 2;
+
+  return (
+    earthRadius *
+    2 *
+    Math.atan2(
+      Math.sqrt(value),
+      Math.sqrt(1 - value)
+    )
+  );
+}
+
+function routeDistance(points) {
+  let total = 0;
+
+  for (let index = 0; index < points.length - 1; index++) {
+    total += distanceKm(
+      points[index],
+      points[index + 1]
+    );
+  }
+
+  return total;
+}
+
+function nearestNeighbour(start, points) {
+  const remaining = [...points];
+  const ordered = [];
+  let current = start;
+
+  while (remaining.length > 0) {
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+
+    remaining.forEach((point, index) => {
+      const distance = distanceKm(
+        current,
+        point
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    });
+
+    const next = remaining.splice(
+      nearestIndex,
+      1
+    )[0];
+
+    ordered.push(next);
+    current = next;
+  }
+
+  return ordered;
+}
+
+function improveWithTwoOpt(points) {
+  if (points.length < 4) {
+    return points;
+  }
+
+  let improved = [...points];
+  let changed = true;
+  let passes = 0;
+
+  while (changed && passes < 20) {
+    changed = false;
+    passes += 1;
+
+    for (
+      let start = 1;
+      start < improved.length - 2;
+      start++
+    ) {
+      for (
+        let end = start + 1;
+        end < improved.length - 1;
+        end++
+      ) {
+        const candidate = [
+          ...improved.slice(0, start),
+          ...improved
+            .slice(start, end + 1)
+            .reverse(),
+          ...improved.slice(end + 1)
+        ];
+
+        if (
+          routeDistance(candidate) <
+          routeDistance(improved)
+        ) {
+          improved = candidate;
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return improved;
+}
+
+function optimizeWithFixedStart(start, points) {
+  const withoutStart = points.filter(
+    point =>
+      !point.id ||
+      String(point.id) !== String(start.id)
+  );
+
+  const ordered = nearestNeighbour(
+    start,
+    withoutStart
+  );
+
+  return improveWithTwoOpt([
+    start,
+    ...ordered
+  ]);
+}
+
+function optimizeWithoutFixedStart(points) {
+  if (points.length < 2) {
+    return [...points];
+  }
+
+  let bestRoute = null;
+  let bestDistance = Infinity;
+
+  points.forEach(candidateStart => {
+    const remaining = points.filter(
+      point =>
+        String(point.id) !==
+        String(candidateStart.id)
+    );
+
+    const candidate = improveWithTwoOpt([
+      candidateStart,
+      ...nearestNeighbour(
+        candidateStart,
+        remaining
+      )
+    ]);
+
+    const distance = routeDistance(candidate);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestRoute = candidate;
+    }
+  });
+
+  return bestRoute || [...points];
+}
+
+async function getCurrentPositionPoint() {
+  if (currentPosition) {
+    return currentPosition;
+  }
+
+  if (!navigator.geolocation) {
+    throw new Error(
+      "La géolocalisation n’est pas disponible sur cet appareil."
+    );
+  }
+
+  locationStatus.textContent =
+    "Recherche de la position actuelle...";
+
+  const position = await new Promise(
+    (resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        reject,
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000
+        }
+      );
+    }
+  );
+
+  currentPosition = {
+    id: "__current_position__",
+    nom: "Ma position actuelle",
+    commune: "",
+    reseau: "",
+    lat: position.coords.latitude,
+    lon: position.coords.longitude
+  };
+
+  locationStatus.textContent =
+    `Position détectée : ` +
+    `${currentPosition.lat.toFixed(5)}, ` +
+    `${currentPosition.lon.toFixed(5)}`;
+
+  return currentPosition;
+}
+
+async function buildOrderedRoute(optimize = true) {
+  if (routeStops.length < 2) {
+    throw new Error(
+      "Ajoute au moins deux arrêts."
+    );
+  }
+
+  const mode = getDepartureMode();
+
+  if (mode === "current") {
+    const start = await getCurrentPositionPoint();
+
+    if (!optimize) {
+      return [start, ...routeStops];
+    }
+
+    return optimizeWithFixedStart(
+      start,
+      routeStops
+    );
+  }
+
+  if (mode === "stop") {
+    if (!selectedStartStop) {
+      throw new Error(
+        "Choisis d’abord l’arrêt de départ."
+      );
+    }
+
+    if (!optimize) {
+      const remaining = routeStops.filter(
+        stop =>
+          String(stop.id) !==
+          String(selectedStartStop.id)
+      );
+
+      return [
+        selectedStartStop,
+        ...remaining
+      ];
+    }
+
+    return optimizeWithFixedStart(
+      selectedStartStop,
+      routeStops
+    );
+  }
+
+  if (optimize) {
+    return optimizeWithoutFixedStart(
+      routeStops
+    );
+  }
+
+  return [...routeStops];
+}
+
+async function optimizeRoute() {
+  try {
+    const ordered = await buildOrderedRoute(true);
+
+    const mode = getDepartureMode();
+
+    routeStops = ordered.filter(
+      point =>
+        point.id !== "__current_position__" &&
+        (
+          mode !== "stop" ||
+          String(point.id) !==
+          String(selectedStartStop?.id)
+        )
+    );
+
+    updateRoute();
+
+    alert(
+      "L’ordre des étapes a été optimisé."
+    );
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function openGoogleRoute() {
+  try {
+    const points = await buildOrderedRoute(true);
+
+    const origin = points[0];
+    const destination =
+      points[points.length - 1];
+
+    const waypoints = points.slice(1, -1);
+
+    const parameters = new URLSearchParams({
+      api: "1",
+      origin: `${origin.lat},${origin.lon}`,
+      destination:
+        `${destination.lat},${destination.lon}`,
+      travelmode: "driving"
+    });
+
+    if (waypoints.length > 0) {
+      parameters.set(
+        "waypoints",
+        waypoints
+          .map(point =>
+            `${point.lat},${point.lon}`
+          )
+          .join("|")
+      );
+    }
+
+    window.open(
+      `https://www.google.com/maps/dir/?${parameters.toString()}`,
+      "_blank",
+      "noopener"
+    );
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function openInRoute() {
+  try {
+    const mode = getDepartureMode();
+
+    const points = await buildOrderedRoute(
+      mode !== "automatic"
+    );
+
+    const locations = points.map(point => {
+      const name = encodeURIComponent(
+        point.nom || "Étape"
+      );
+
+      return (
+        `loc=${name}/` +
+        `${Number(point.lat)}/` +
+        `${Number(point.lon)}`
+      );
+    });
+
+    const action =
+      mode === "automatic"
+        ? "action=opt&"
+        : "";
+
+    const url =
+      `inroute://coordinates?` +
+      action +
+      locations.join("&");
+
+    window.location.href = url;
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+document
+  .querySelectorAll(
+    'input[name="departureMode"]'
+  )
+  .forEach(input => {
+    input.addEventListener(
+      "change",
+      handleDepartureModeChange
+    );
+  });
+
+searchInput.addEventListener(
+  "input",
+  refreshSearch
+);
+
+networkFilter.addEventListener(
+  "change",
+  refreshSearch
+);
+
+cityFilter.addEventListener(
+  "change",
+  refreshSearch
+);
+
+startStopSearch.addEventListener(
+  "input",
+  searchStartStops
+);
+
+optimizeRouteBtn.addEventListener(
+  "click",
+  optimizeRoute
+);
+
+openRouteBtn.addEventListener(
+  "click",
+  openGoogleRoute
+);
+
+openInRouteBtn.addEventListener(
+  "click",
+  openInRoute
+);
+
+clearRouteBtn.addEventListener(
+  "click",
+  () => {
+    routeStops = [];
+    selectedStartStop = null;
+    currentPosition = null;
+
+    startStopSearch.value = "";
+    startStopResults.innerHTML = "";
+    selectedStartStopEl.innerHTML = "";
+
+    locationStatus.textContent =
+      "La position sera demandée lors de la création de l’itinéraire.";
+
+    updateRoute();
+  }
+);
+
+handleDepartureModeChange();
 loadStops();
