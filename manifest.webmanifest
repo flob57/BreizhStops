@@ -1,0 +1,12 @@
+{
+  "name": "BreizhStops",
+  "short_name": "BreizhStops",
+  "description": "Recherche d’arrêts et préparation d’itinéraires en Bretagne",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef2f6",
+  "theme_color": "#004b87",
+  "lang": "fr",
+  "orientation": "any"
+}
