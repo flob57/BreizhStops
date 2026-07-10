@@ -9,8 +9,6 @@ body {
   color: #1f2933;
 }
 
-/* En-tête */
-
 header {
   min-height: 64px;
   background: #004b87;
@@ -33,12 +31,9 @@ header h1 {
   white-space: nowrap;
 }
 
-/* Organisation générale sur ordinateur */
-
 .layout {
   display: grid;
-
-  grid-template-columns: 380px minmax(0, 1fr) 320px;
+  grid-template-columns: 380px minmax(0, 1fr) 360px;
   grid-template-rows: auto minmax(0, 1fr);
 
   grid-template-areas:
@@ -48,13 +43,47 @@ header h1 {
   height: calc(100vh - 64px);
 }
 
-/* Recherche */
-
 .search-tools {
   grid-area: search;
   background: white;
   padding: 16px 16px 6px;
   border-right: 1px solid #d9e0e7;
+}
+
+.results-panel {
+  grid-area: results;
+  background: white;
+  padding: 6px 16px 16px;
+  overflow-y: auto;
+  border-right: 1px solid #d9e0e7;
+}
+
+.map-panel {
+  grid-area: map;
+  min-width: 0;
+  min-height: 0;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+.route-panel {
+  grid-area: route;
+  background: white;
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 1px solid #d9e0e7;
+}
+
+.route-panel h2 {
+  margin-top: 0;
+}
+
+.route-panel h3 {
+  margin-top: 22px;
+  margin-bottom: 10px;
 }
 
 input,
@@ -75,16 +104,6 @@ select {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-}
-
-/* Résultats */
-
-.results-panel {
-  grid-area: results;
-  background: white;
-  padding: 6px 16px 16px;
-  overflow-y: auto;
-  border-right: 1px solid #d9e0e7;
 }
 
 #counter {
@@ -115,45 +134,6 @@ select {
   font-size: 14px;
 }
 
-/* Carte */
-
-.map-panel {
-  grid-area: map;
-  min-width: 0;
-  min-height: 0;
-}
-
-#map {
-  width: 100%;
-  height: 100%;
-}
-
-/* Itinéraire */
-
-.route-panel {
-  grid-area: route;
-  background: white;
-  padding: 16px;
-  overflow-y: auto;
-  border-left: 1px solid #d9e0e7;
-}
-
-.route-panel h2 {
-  margin-top: 0;
-}
-
-.route-item {
-  padding: 10px 0;
-  border-bottom: 1px solid #e5e9ee;
-}
-
-.empty {
-  color: #777;
-  font-style: italic;
-}
-
-/* Boutons */
-
 button,
 .map-link {
   display: inline-block;
@@ -173,19 +153,18 @@ button:hover,
   background: #003965;
 }
 
+button:disabled {
+  background: #b8c0c8;
+  cursor: not-allowed;
+}
+
 .secondary {
   background: #6b7280;
 }
 
-#openRoute {
-  width: 100%;
-  margin-top: 16px;
-  font-weight: bold;
-}
-
-#openRoute:disabled {
-  background: #b8c0c8;
-  cursor: not-allowed;
+.empty {
+  color: #777;
+  font-style: italic;
 }
 
 .popup-title {
@@ -193,21 +172,113 @@ button:hover,
   margin-bottom: 5px;
 }
 
+/* Choix du départ */
+
+.departure-options {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #d9e0e7;
+  border-radius: 12px;
+}
+
+.departure-options legend {
+  padding: 0 6px;
+  font-weight: bold;
+}
+
+.departure-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  cursor: pointer;
+}
+
+.departure-options input[type="radio"] {
+  width: auto;
+  margin: 0;
+}
+
+.information-box {
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 9px;
+  background: #eef6fc;
+  color: #31536d;
+  font-size: 13px;
+}
+
+.start-stop-area {
+  margin-top: 15px;
+}
+
+.start-stop-area > label {
+  display: block;
+  margin-bottom: 7px;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none;
+}
+
+.start-result {
+  padding: 9px;
+  margin-top: 6px;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  background: #fbfcfd;
+  cursor: pointer;
+}
+
+.start-result:hover {
+  background: #eef6fc;
+}
+
+.selected-start {
+  margin-top: 10px;
+  padding: 11px;
+  background: #eaf7ef;
+  border: 1px solid #b9dfc7;
+  border-radius: 9px;
+}
+
+/* Étapes */
+
+.route-item {
+  padding: 11px 0;
+  border-bottom: 1px solid #e5e9ee;
+}
+
+.route-item-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.route-item-buttons button {
+  margin: 0;
+}
+
+.route-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.route-actions button {
+  width: 100%;
+  margin: 0;
+  padding: 11px;
+  font-weight: bold;
+}
+
 /* Tablettes et smartphones */
 
 @media (max-width: 1000px) {
 
-  header {
-    min-height: 64px;
-  }
-
-  header h1 {
-    font-size: 20px;
-  }
-
   .layout {
-    display: grid;
-
     grid-template-columns: 1fr;
     grid-template-rows: auto 420px auto auto;
 
@@ -244,8 +315,6 @@ button:hover,
   }
 }
 
-/* Petits smartphones */
-
 @media (max-width: 600px) {
 
   header {
@@ -271,11 +340,6 @@ button:hover,
   input,
   select {
     font-size: 16px;
-    padding: 13px;
-  }
-
-  .result {
-    padding: 14px;
   }
 
   button,
