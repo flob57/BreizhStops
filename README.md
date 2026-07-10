@@ -1,1 +1,178 @@
-# arrets-bretagne
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+
+  <title>BreizhStops</title>
+
+  <meta name="theme-color" content="#004b87" />
+  <meta
+    name="description"
+    content="Recherche d’arrêts et préparation d’itinéraires en Bretagne"
+  />
+
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  />
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  />
+  <meta
+    name="apple-mobile-web-app-title"
+    content="BreizhStops"
+  />
+
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon-192.png" />
+  <link
+    rel="apple-touch-icon"
+    href="/icons/icon-192.png"
+  />
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIINfQ3ynpHfwpVJmK8X8uRFcPUZB6xX9gA="
+    crossorigin=""
+  />
+
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+  <header>
+    <h1>🚍 BreizhStops</h1>
+    <span id="status">Chargement...</span>
+  </header>
+
+  <main class="layout">
+
+    <section class="search-tools">
+      <input
+        id="search"
+        type="search"
+        placeholder="Rechercher un arrêt, une commune, un réseau..."
+        autocomplete="off"
+      />
+
+      <div class="filters">
+        <select id="networkFilter">
+          <option value="">Tous les réseaux</option>
+        </select>
+
+        <select id="cityFilter">
+          <option value="">Toutes les communes</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="results-panel">
+      <div id="counter"></div>
+      <div id="results"></div>
+    </section>
+
+    <section class="map-panel">
+      <div id="map"></div>
+    </section>
+
+    <aside class="route-panel">
+      <h2>Mon itinéraire</h2>
+
+      <fieldset class="departure-options">
+        <legend>Point de départ</legend>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="current"
+            checked
+          />
+          Ma position actuelle
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="stop"
+          />
+          Choisir un arrêt de départ
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="automatic"
+          />
+          Laisser l’optimisation choisir
+        </label>
+      </fieldset>
+
+      <div id="locationStatus" class="information-box">
+        La position sera demandée lors de la création de l’itinéraire.
+      </div>
+
+      <div id="startStopArea" class="start-stop-area hidden">
+        <label for="startStopSearch">
+          Arrêt de départ
+        </label>
+
+        <input
+          id="startStopSearch"
+          type="search"
+          placeholder="Rechercher l’arrêt de départ..."
+          autocomplete="off"
+        />
+
+        <div id="startStopResults"></div>
+        <div id="selectedStartStop"></div>
+      </div>
+
+      <h3>Étapes sélectionnées</h3>
+
+      <div id="routeList" class="empty">
+        Aucun arrêt ajouté.
+      </div>
+
+      <div class="route-actions">
+        <button id="optimizeRoute" disabled>
+          🧮 Optimiser l’ordre
+        </button>
+
+        <button id="openRoute" disabled>
+          📍 Google Maps
+        </button>
+
+        <button id="openInRoute" disabled>
+          🧭 Ouvrir dans inRoute
+        </button>
+
+        <button id="exportGpx" disabled>
+          📁 Exporter en GPX
+        </button>
+
+        <button id="clearRoute" class="secondary">
+          🗑 Vider
+        </button>
+      </div>
+    </aside>
+
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <script src="/app.js"></script>
+</body>
+</html>

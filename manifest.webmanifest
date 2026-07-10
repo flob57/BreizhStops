@@ -1,12 +1,31 @@
-{
-  "name": "BreizhStops",
-  "short_name": "BreizhStops",
-  "description": "Recherche d’arrêts et préparation d’itinéraires en Bretagne",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "background_color": "#eef2f6",
-  "theme_color": "#004b87",
-  "lang": "fr",
-  "orientation": "any"
-}
+# Remplacement du projet dans GitHub
+
+## Méthode simple
+
+1. Télécharge et décompresse `BreizhStops-complet.zip`.
+2. Ouvre ton dépôt GitHub.
+3. Clique sur **Add file** puis **Upload files**.
+4. Dépose tous les fichiers et dossiers décompressés.
+5. GitHub proposera de remplacer les fichiers existants.
+6. Valide avec **Commit changes**.
+
+## Important
+
+Le dossier `data` doit contenir :
+
+`data/stops.json`
+
+Le site doit ensuite charger les arrêts automatiquement.
+
+## Si l'ancien cache gêne encore
+
+Sur ordinateur :
+
+- recharge avec `Ctrl + F5`.
+
+Sur iPhone :
+
+- ferme complètement la Web App ;
+- rouvre Safari ;
+- recharge le site ;
+- supprime puis réinstalle l'icône de l'écran d'accueil si nécessaire.
