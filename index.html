@@ -1,74 +1,50 @@
 <!DOCTYPE html>
-
 <html lang="fr">
-
 <head>
-
   <meta charset="UTF-8" />
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>Arrêts Bretagne</title>
+  <title>BreizhStops</title>
 
   <link
-
     rel="stylesheet"
-
     href="https://unpkg.com/leaflet/dist/leaflet.css"
-
   />
 
   <link rel="stylesheet" href="style.css" />
-
 </head>
 
 <body>
 
   <header>
-
-    <h1>🚍 Arrêts Bretagne</h1>
-
+    <h1>🚍 BreizhStops</h1>
     <span id="status">Chargement...</span>
-
   </header>
 
   <main class="layout">
 
-    <!-- Recherche et filtres -->
-
     <section class="search-tools">
 
       <input
-
         id="search"
-
         type="text"
-
         placeholder="Rechercher un arrêt, une commune, un réseau..."
-
         autocomplete="off"
-
       />
 
       <div class="filters">
 
         <select id="networkFilter">
-
           <option value="">Tous les réseaux</option>
-
         </select>
 
         <select id="cityFilter">
-
           <option value="">Toutes les communes</option>
-
         </select>
 
       </div>
 
     </section>
-
-    <!-- Liste des résultats -->
 
     <section class="results-panel">
 
@@ -78,46 +54,103 @@
 
     </section>
 
-    <!-- Carte -->
-
     <section class="map-panel">
-
       <div id="map"></div>
-
     </section>
-
-    <!-- Itinéraire -->
 
     <aside class="route-panel">
 
       <h2>Mon itinéraire</h2>
 
-      <div id="routeList" class="empty">
+      <fieldset class="departure-options">
 
-        Aucun arrêt ajouté.
+        <legend>Point de départ</legend>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="current"
+            checked
+          />
+          Ma position actuelle
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="stop"
+          />
+          Choisir un arrêt de départ
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="departureMode"
+            value="automatic"
+          />
+          Laisser l’optimisation choisir
+        </label>
+
+      </fieldset>
+
+      <div id="locationStatus" class="information-box">
+        La position sera demandée lors de la création de l’itinéraire.
+      </div>
+
+      <div id="startStopArea" class="start-stop-area hidden">
+
+        <label for="startStopSearch">
+          Arrêt de départ
+        </label>
+
+        <input
+          id="startStopSearch"
+          type="text"
+          placeholder="Rechercher l’arrêt de départ..."
+          autocomplete="off"
+        />
+
+        <div id="startStopResults"></div>
+
+        <div id="selectedStartStop"></div>
 
       </div>
 
-      <button id="openRoute" disabled>
+      <h3>Étapes sélectionnées</h3>
 
-        Ouvrir dans Google Maps
+      <div id="routeList" class="empty">
+        Aucun arrêt ajouté.
+      </div>
 
-      </button>
+      <div class="route-actions">
 
-      <button id="clearRoute" class="secondary">
+        <button id="optimizeRoute" disabled>
+          🧮 Optimiser l’ordre
+        </button>
 
-        Vider
+        <button id="openRoute" disabled>
+          📍 Google Maps
+        </button>
 
-      </button>
+        <button id="openInRoute" disabled>
+          🧭 Ouvrir dans inRoute
+        </button>
+
+        <button id="clearRoute" class="secondary">
+          🗑 Vider
+        </button>
+
+      </div>
 
     </aside>
 
   </main>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
   <script src="app.js"></script>
 
 </body>
-
 </html>
