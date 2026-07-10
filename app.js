@@ -70,27 +70,44 @@ async function loadStops() {
   try {
     statusEl.textContent = "Chargement des arrêts...";
 
-    const response = await fetch("./data/stops.json", {
-  cache: "no-store"
-});
+    const response = await fetch("/data/stops.json", {
+      cache: "no-store"
+    });
 
     if (!response.ok) {
       throw new Error(`Erreur HTTP ${response.status}`);
     }
 
-    stops = await response.json();
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Le fichier stops.json ne contient pas une liste d’arrêts."
+      );
+    }
+
+    stops = data;
 
     initMap();
-    LinkedFilters();
+    updateLinkedFilters();
     refreshSearch();
     updateRoute();
 
     statusEl.textContent = `${stops.length} arrêts chargés`;
   } catch (error) {
-    console.error(error);
+    console.error(
+      "Erreur de chargement des arrêts :",
+      error
+    );
+
     statusEl.textContent = "Erreur de chargement";
-    resultsEl.innerHTML =
-      "<p>Impossible de charger les arrêts.</p>";
+
+    resultsEl.innerHTML = `
+      <p>
+        Impossible de charger les arrêts.<br>
+        <small>${escapeHtml(error.message)}</small>
+      </p>
+    `;
   }
 }
 
