@@ -1,26 +1,30 @@
-{
-  "name": "BreizhStops",
-  "short_name": "BreizhStops",
-  "description": "Recherche d’arrêts et préparation d’itinéraires en Bretagne",
-  "start_url": "/",
-  "scope": "/",
-  "display": "standalone",
-  "background_color": "#eef2f6",
-  "theme_color": "#004b87",
-  "lang": "fr",
-  "orientation": "any",
-  "icons": [
-    {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
-}
+# BreizhStops V2 stable
+
+Cette version ne contient volontairement **aucun service worker** afin d’éviter
+les anciens problèmes de cache.
+
+## Fichiers à déployer
+
+- `index.html`
+- `style.css`
+- `app.js`
+- `data/stops.json`
+
+## Données
+
+Nombre d’arrêts inclus : 13230
+
+Sources fusionnées :
+- GTFS Bretagne
+- Base QUB
+- points inRoute de confiance
+
+## Déploiement GitHub
+
+1. Supprimer ou ignorer les anciens fichiers PWA :
+   - `service-worker.js`
+   - `manifest.webmanifest`
+2. Remplacer les quatre fichiers listés ci-dessus.
+3. Faire un commit.
+4. Attendre Cloudflare Pages.
+5. Recharger avec Ctrl + F5.

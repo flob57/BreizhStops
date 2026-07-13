@@ -1,87 +1,382 @@
-const CACHE_NAME = "breizhstops-shell-v3";
+* {
+  box-sizing: border-box;
+}
 
-const SHELL_FILES = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/app.js",
-  "/manifest.webmanifest",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png"
-];
+:root {
+  --blue: #005493;
+  --blue-dark: #003e70;
+  --background: #eef3f7;
+  --panel: #ffffff;
+  --text: #1f2933;
+  --muted: #5f6b76;
+  --border: #d8e0e7;
+  --soft: #f8fafc;
+  --secondary: #667085;
+}
 
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(SHELL_FILES);
-    })
-  );
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
 
-  self.skipWaiting();
-});
+button,
+input,
+select {
+  font: inherit;
+}
 
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(names => {
-      return Promise.all(
-        names
-          .filter(name => name !== CACHE_NAME)
-          .map(name => caches.delete(name))
-      );
-    })
-  );
+.app-header {
+  min-height: 64px;
+  padding: 12px 20px;
+  background: var(--blue);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 
-  self.clients.claim();
-});
+.app-header h1 {
+  margin: 0;
+  font-size: 22px;
+}
 
-self.addEventListener("fetch", event => {
-  const request = event.request;
-  const url = new URL(request.url);
+#status {
+  font-size: 14px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
 
-  if (request.method !== "GET") {
-    return;
+.layout {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr) 360px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "search map route"
+    "results map route";
+  height: calc(100vh - 64px);
+}
+
+.search-tools {
+  grid-area: search;
+  background: var(--panel);
+  padding: 16px 16px 8px;
+  border-right: 1px solid var(--border);
+}
+
+.results-panel {
+  grid-area: results;
+  background: var(--panel);
+  padding: 4px 16px 16px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.map-panel {
+  grid-area: map;
+  min-width: 0;
+  min-height: 0;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+}
+
+.route-panel {
+  grid-area: route;
+  background: var(--panel);
+  padding: 16px;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+}
+
+.route-panel h2 {
+  margin-top: 0;
+}
+
+.route-panel h3 {
+  margin: 22px 0 10px;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #cbd5df;
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+}
+
+#search {
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.filters {
+  display: grid;
+  gap: 10px;
+}
+
+#counter {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.result {
+  padding: 14px;
+  margin-bottom: 10px;
+  border: 1px solid #e2e8ee;
+  border-radius: 12px;
+  background: var(--soft);
+}
+
+.result:hover {
+  background: #eef6fc;
+}
+
+.result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.meta {
+  margin: 7px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e7eef5;
+  color: #344054;
+  font-size: 12px;
+}
+
+.badge.trusted {
+  background: #e8f6ed;
+  color: #176b39;
+}
+
+button,
+.map-link {
+  display: inline-block;
+  margin: 4px 5px 4px 0;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--blue);
+  color: white;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+button:hover,
+.map-link:hover {
+  background: var(--blue-dark);
+}
+
+button:disabled {
+  background: #b8c1cb;
+  cursor: not-allowed;
+}
+
+.secondary {
+  background: var(--secondary);
+}
+
+.empty {
+  color: #777;
+  font-style: italic;
+}
+
+.popup-title {
+  margin-bottom: 5px;
+  font-weight: 700;
+}
+
+.departure-options {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.departure-options legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.departure-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 0;
+  cursor: pointer;
+}
+
+.departure-options input[type="radio"] {
+  width: auto;
+  margin: 0;
+}
+
+.information-box {
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 9px;
+  background: #edf5fb;
+  color: #31536d;
+  font-size: 13px;
+}
+
+.start-stop-area {
+  margin-top: 15px;
+}
+
+.start-stop-area > label {
+  display: block;
+  margin-bottom: 7px;
+  font-weight: 700;
+}
+
+.hidden {
+  display: none;
+}
+
+.start-result {
+  padding: 9px;
+  margin-top: 6px;
+  border: 1px solid #dfe5eb;
+  border-radius: 8px;
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.start-result:hover {
+  background: #eef6fc;
+}
+
+.selected-start {
+  margin-top: 10px;
+  padding: 11px;
+  background: #eaf7ef;
+  border: 1px solid #b9dfc7;
+  border-radius: 9px;
+}
+
+.route-item {
+  padding: 11px 0;
+  border-bottom: 1px solid #e5e9ee;
+}
+
+.route-item-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.route-item-buttons button {
+  margin: 0;
+}
+
+.route-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.route-actions button {
+  width: 100%;
+  margin: 0;
+  padding: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 420px auto auto;
+    grid-template-areas:
+      "search"
+      "map"
+      "route"
+      "results";
+    height: auto;
   }
 
-  if (url.origin !== self.location.origin) {
-    return;
+  .search-tools {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
   }
 
-  /*
-   * Important :
-   * stops.json n'est jamais mis en cache par le service worker.
-   * Le navigateur reçoit toujours la version publiée sur Cloudflare.
-   */
-  if (url.pathname === "/data/stops.json") {
-    event.respondWith(fetch(request));
-    return;
+  .map-panel {
+    height: 420px;
   }
 
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(() => caches.match("/index.html"))
-    );
-    return;
+  .route-panel {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
   }
 
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) {
-        return cached;
-      }
+  .results-panel {
+    border-right: 0;
+    overflow: visible;
+  }
+}
 
-      return fetch(request).then(response => {
-        if (!response || !response.ok) {
-          return response;
-        }
+@media (max-width: 600px) {
+  .app-header {
+    padding: 12px 14px;
+  }
 
-        const copy = response.clone();
+  .app-header h1 {
+    font-size: 19px;
+  }
 
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(request, copy);
-        });
+  #status {
+    font-size: 12px;
+  }
 
-        return response;
-      });
-    })
-  );
-});
+  .layout {
+    grid-template-rows: auto 340px auto auto;
+  }
+
+  .map-panel {
+    height: 340px;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+  }
+
+  button,
+  .map-link {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+}

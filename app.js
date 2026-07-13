@@ -47,12 +47,18 @@ function escapeHtml(text) {
 }
 
 function getDepartureMode() {
-  return document.querySelector(
+  const selected = document.querySelector(
     'input[name="departureMode"]:checked'
-  ).value;
+  );
+
+  return selected ? selected.value : "current";
 }
 
 function initMap() {
+  if (map) {
+    return;
+  }
+
   map = L.map("map").setView([48.2, -3.2], 8);
 
   L.tileLayer(
@@ -67,12 +73,13 @@ function initMap() {
 }
 
 async function loadStops() {
-  try {
-    statusEl.textContent = "Chargement des arrêts...";
+  statusEl.textContent = "Chargement des arrêts…";
 
-    const response = await fetch("/data/stops.json", {
-      cache: "no-store"
-    });
+  try {
+    const response = await fetch(
+      `./data/stops.json?v=${Date.now()}`,
+      { cache: "no-store" }
+    );
 
     if (!response.ok) {
       throw new Error(`Erreur HTTP ${response.status}`);
@@ -82,7 +89,7 @@ async function loadStops() {
 
     if (!Array.isArray(data)) {
       throw new Error(
-        "Le fichier stops.json ne contient pas une liste d’arrêts."
+        "Le fichier stops.json n’est pas un tableau d’arrêts."
       );
     }
 
@@ -95,13 +102,9 @@ async function loadStops() {
 
     statusEl.textContent = `${stops.length} arrêts chargés`;
   } catch (error) {
-    console.error(
-      "Erreur de chargement des arrêts :",
-      error
-    );
+    console.error("Erreur de chargement :", error);
 
     statusEl.textContent = "Erreur de chargement";
-
     resultsEl.innerHTML = `
       <p>
         Impossible de charger les arrêts.<br>
@@ -131,36 +134,39 @@ function fillSelect(
     select.appendChild(option);
   });
 
-  if (selectedValue && values.includes(selectedValue)) {
-    select.value = selectedValue;
-  } else {
-    select.value = "";
-  }
+  select.value =
+    selectedValue && values.includes(selectedValue)
+      ? selectedValue
+      : "";
 }
 
 function updateLinkedFilters() {
   const selectedNetwork = networkFilter.value;
   const selectedCity = cityFilter.value;
 
-  const availableCities = [...new Set(
-    stops
-      .filter(stop =>
-        !selectedNetwork ||
-        stop.reseau === selectedNetwork
-      )
-      .map(stop => stop.commune)
-      .filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, "fr"));
+  const availableCities = [
+    ...new Set(
+      stops
+        .filter(stop =>
+          !selectedNetwork ||
+          stop.reseau === selectedNetwork
+        )
+        .map(stop => stop.commune)
+        .filter(Boolean)
+    )
+  ].sort((a, b) => a.localeCompare(b, "fr"));
 
-  const availableNetworks = [...new Set(
-    stops
-      .filter(stop =>
-        !selectedCity ||
-        stop.commune === selectedCity
-      )
-      .map(stop => stop.reseau)
-      .filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, "fr"));
+  const availableNetworks = [
+    ...new Set(
+      stops
+        .filter(stop =>
+          !selectedCity ||
+          stop.commune === selectedCity
+        )
+        .map(stop => stop.reseau)
+        .filter(Boolean)
+    )
+  ].sort((a, b) => a.localeCompare(b, "fr"));
 
   fillSelect(
     cityFilter,
@@ -221,6 +227,26 @@ function refreshSearch() {
   displayMarkers(currentResults);
 }
 
+function getSourceBadges(stop) {
+  const badges = [];
+
+  if (stop.verified_terrain || stop.trusted) {
+    badges.push(
+      `<span class="badge trusted">✓ Vérifié terrain</span>`
+    );
+  }
+
+  if (Array.isArray(stop.sources)) {
+    stop.sources.forEach(source => {
+      badges.push(
+        `<span class="badge">${escapeHtml(source)}</span>`
+      );
+    });
+  }
+
+  return badges.join("");
+}
+
 function displayResults(results, total) {
   counterEl.textContent =
     `${total} résultat(s). ` +
@@ -229,31 +255,33 @@ function displayResults(results, total) {
       : ""}`;
 
   if (results.length === 0) {
-    resultsEl.innerHTML =
-      "<p>Aucun arrêt trouvé.</p>";
+    resultsEl.innerHTML = "<p>Aucun arrêt trouvé.</p>";
 
-    markersLayer.clearLayers();
+    if (markersLayer) {
+      markersLayer.clearLayers();
+    }
+
     return;
   }
 
   resultsEl.innerHTML = results.map(
     (stop, index) => `
-      <div class="result">
-
-        <strong>
-          🚏 ${escapeHtml(
-            stop.nom || "Arrêt sans nom"
-          )}
-        </strong>
+      <article class="result">
+        <div class="result-title">
+          🚏 ${escapeHtml(stop.nom || "Arrêt sans nom")}
+        </div>
 
         <div class="meta">
           📍 ${escapeHtml(
             stop.commune || "Commune inconnue"
           )}
-
           ${stop.reseau
             ? ` — 🚌 ${escapeHtml(stop.reseau)}`
             : ""}
+        </div>
+
+        <div class="badges">
+          ${getSourceBadges(stop)}
         </div>
 
         <button onclick="zoomToStop(${index})">
@@ -272,92 +300,76 @@ function displayResults(results, total) {
         <button onclick="addToRoute(${index})">
           Ajouter
         </button>
-
-      </div>
+      </article>
     `
   ).join("");
 }
 
 function displayMarkers(results) {
+  if (!markersLayer) {
+    return;
+  }
+
   markersLayer.clearLayers();
   markerById.clear();
 
   const bounds = [];
 
   results.forEach(stop => {
+    const latitude = Number(stop.lat);
+    const longitude = Number(stop.lon);
+
     if (
-      !Number.isFinite(Number(stop.lat)) ||
-      !Number.isFinite(Number(stop.lon))
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
     ) {
       return;
     }
 
-    const marker = L.marker([
-      Number(stop.lat),
-      Number(stop.lon)
-    ]);
+    const marker = L.marker([latitude, longitude]);
+    const safeId = String(stop.id)
+      .replace(/\\/g, "\\\\")
+      .replace(/'/g, "\\'");
 
     marker.bindPopup(`
       <div class="popup-title">
-        🚏 ${escapeHtml(
-          stop.nom || "Arrêt sans nom"
-        )}
+        🚏 ${escapeHtml(stop.nom || "Arrêt sans nom")}
       </div>
-
       <div>
         📍 ${escapeHtml(
           stop.commune || "Commune inconnue"
         )}
       </div>
-
       <div>
         🚌 ${escapeHtml(
           stop.reseau || "Réseau inconnu"
         )}
       </div>
-
       <br>
-
       <a
         target="_blank"
         rel="noopener"
-        href="https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lon}"
+        href="https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}"
       >
         Google Maps
       </a>
-
       <br><br>
-
-      <button
-        onclick="addStopById('${String(stop.id)
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'")}')"
-      >
+      <button onclick="addStopById('${safeId}')">
         Ajouter à l’itinéraire
       </button>
     `);
 
     marker.addTo(markersLayer);
-
-    markerById.set(
-      String(stop.id),
-      marker
-    );
-
-    bounds.push([
-      Number(stop.lat),
-      Number(stop.lon)
-    ]);
+    markerById.set(String(stop.id), marker);
+    bounds.push([latitude, longitude]);
   });
 
   if (bounds.length === 1) {
     map.setView(bounds[0], 16);
-  } else if (
-    bounds.length > 1 &&
-    results.length <= 100
-  ) {
+  } else if (bounds.length > 1) {
     map.fitBounds(bounds, {
-      padding: [40, 40]
+      padding: [40, 40],
+      maxZoom: 15
     });
   }
 }
@@ -365,16 +377,16 @@ function displayMarkers(results) {
 function zoomToStop(index) {
   const stop = currentResults[index];
 
-  if (!stop) return;
+  if (!stop) {
+    return;
+  }
 
-  map.setView(
-    [Number(stop.lat), Number(stop.lon)],
-    16
-  );
+  const latitude = Number(stop.lat);
+  const longitude = Number(stop.lon);
 
-  const marker = markerById.get(
-    String(stop.id)
-  );
+  map.setView([latitude, longitude], 16);
+
+  const marker = markerById.get(String(stop.id));
 
   if (marker) {
     marker.openPopup();
@@ -384,9 +396,9 @@ function zoomToStop(index) {
 function addToRoute(index) {
   const stop = currentResults[index];
 
-  if (!stop) return;
-
-  addStop(stop);
+  if (stop) {
+    addStop(stop);
+  }
 }
 
 function addStopById(id) {
@@ -394,18 +406,17 @@ function addStopById(id) {
     item => String(item.id) === String(id)
   );
 
-  if (!stop) return;
-
-  addStop(stop);
+  if (stop) {
+    addStop(stop);
+  }
 }
 
 function addStop(stop) {
-  const alreadyAdded = routeStops.some(
-    item =>
-      String(item.id) === String(stop.id)
+  const exists = routeStops.some(
+    item => String(item.id) === String(stop.id)
   );
 
-  if (!alreadyAdded) {
+  if (!exists) {
     routeStops.push(stop);
     updateRoute();
   }
@@ -426,9 +437,8 @@ function moveRouteStop(index, direction) {
     return;
   }
 
-  const temporary = routeStops[index];
-  routeStops[index] = routeStops[targetIndex];
-  routeStops[targetIndex] = temporary;
+  [routeStops[index], routeStops[targetIndex]] =
+    [routeStops[targetIndex], routeStops[index]];
 
   updateRoute();
 }
@@ -436,30 +446,24 @@ function moveRouteStop(index, direction) {
 function updateRoute() {
   if (routeStops.length === 0) {
     routeListEl.className = "empty";
-    routeListEl.innerHTML =
-      "Aucun arrêt ajouté.";
+    routeListEl.innerHTML = "Aucun arrêt ajouté.";
   } else {
     routeListEl.className = "";
 
     routeListEl.innerHTML = routeStops.map(
       (stop, index) => `
         <div class="route-item">
-
           ${index + 1}.
           <strong>
-            ${escapeHtml(stop.nom)}
+            ${escapeHtml(stop.nom || "Arrêt sans nom")}
           </strong>
-
           <br>
-
           ${escapeHtml(stop.commune || "")}
 
           <div class="route-item-buttons">
-
             <button
               onclick="moveRouteStop(${index}, -1)"
               ${index === 0 ? "disabled" : ""}
-              title="Monter"
             >
               ↑
             </button>
@@ -469,7 +473,6 @@ function updateRoute() {
               ${index === routeStops.length - 1
                 ? "disabled"
                 : ""}
-              title="Descendre"
             >
               ↓
             </button>
@@ -480,20 +483,18 @@ function updateRoute() {
             >
               Retirer
             </button>
-
           </div>
-
         </div>
       `
     ).join("");
   }
 
-  const enoughStops = routeStops.length >= 2;
+  const enabled = routeStops.length >= 2;
 
-  optimizeRouteBtn.disabled = !enoughStops;
-  openRouteBtn.disabled = !enoughStops;
-  openInRouteBtn.disabled = !enoughStops;
-  exportGpxBtn.disabled = !enoughStops;
+  optimizeRouteBtn.disabled = !enabled;
+  openRouteBtn.disabled = !enabled;
+  openInRouteBtn.disabled = !enabled;
+  exportGpxBtn.disabled = !enabled;
 }
 
 function handleDepartureModeChange() {
@@ -501,36 +502,28 @@ function handleDepartureModeChange() {
 
   if (mode === "stop") {
     startStopArea.classList.remove("hidden");
-
     locationStatus.textContent =
       "Choisis l’arrêt qui doit rester en première position.";
   } else {
     startStopArea.classList.add("hidden");
     startStopResults.innerHTML = "";
 
-    if (mode === "current") {
-      locationStatus.textContent =
-        "La position sera demandée lors de la création de l’itinéraire.";
-    }
-
-    if (mode === "automatic") {
-      locationStatus.textContent =
-        "L’ordre complet, y compris le premier arrêt, sera optimisé.";
-    }
+    locationStatus.textContent =
+      mode === "automatic"
+        ? "L’ordre complet, y compris le premier arrêt, sera optimisé."
+        : "La position sera demandée lors de la création de l’itinéraire.";
   }
 }
 
 function searchStartStops() {
-  const query = normalize(
-    startStopSearch.value.trim()
-  );
+  const query = normalize(startStopSearch.value.trim());
 
   if (query.length < 2) {
     startStopResults.innerHTML = "";
     return;
   }
 
-  const words = query.split(/\s+/);
+  const words = query.split(/\s+/).filter(Boolean);
 
   const matches = stops
     .filter(stop => {
@@ -547,26 +540,27 @@ function searchStartStops() {
     .slice(0, 8);
 
   startStopResults.innerHTML = matches.map(
-    stop => `
-      <div
-        class="start-result"
-        onclick="selectStartStop('${String(stop.id)
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'")}')"
-      >
-        <strong>
-          ${escapeHtml(stop.nom)}
-        </strong>
+    stop => {
+      const safeId = String(stop.id)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'");
 
-        <br>
-
-        ${escapeHtml(stop.commune || "")}
-
-        ${stop.reseau
-          ? ` — ${escapeHtml(stop.reseau)}`
-          : ""}
-      </div>
-    `
+      return `
+        <div
+          class="start-result"
+          onclick="selectStartStop('${safeId}')"
+        >
+          <strong>
+            ${escapeHtml(stop.nom || "Arrêt sans nom")}
+          </strong>
+          <br>
+          ${escapeHtml(stop.commune || "")}
+          ${stop.reseau
+            ? ` — ${escapeHtml(stop.reseau)}`
+            : ""}
+        </div>
+      `;
+    }
   ).join("");
 }
 
@@ -575,32 +569,26 @@ function selectStartStop(id) {
     item => String(item.id) === String(id)
   );
 
-  if (!stop) return;
+  if (!stop) {
+    return;
+  }
 
   selectedStartStop = stop;
 
   selectedStartStopEl.innerHTML = `
     <div class="selected-start">
-
       <strong>Départ sélectionné :</strong>
-
       <br>
-
-      🚏 ${escapeHtml(stop.nom)}
-
+      🚏 ${escapeHtml(stop.nom || "Arrêt sans nom")}
       <br>
-
       📍 ${escapeHtml(stop.commune || "")}
-
       <br><br>
-
       <button
         class="secondary"
         onclick="clearSelectedStartStop()"
       >
         Modifier
       </button>
-
     </div>
   `;
 
@@ -617,8 +605,8 @@ function clearSelectedStartStop() {
 function distanceKm(pointA, pointB) {
   const earthRadius = 6371;
 
-  const lat1 = Number(pointA.lat) * Math.PI / 180;
-  const lat2 = Number(pointB.lat) * Math.PI / 180;
+  const latA = Number(pointA.lat) * Math.PI / 180;
+  const latB = Number(pointB.lat) * Math.PI / 180;
 
   const deltaLat =
     (Number(pointB.lat) - Number(pointA.lat)) *
@@ -630,8 +618,8 @@ function distanceKm(pointA, pointB) {
 
   const value =
     Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) *
-    Math.cos(lat2) *
+    Math.cos(latA) *
+    Math.cos(latB) *
     Math.sin(deltaLon / 2) ** 2;
 
   return (
@@ -648,10 +636,7 @@ function routeDistance(points) {
   let total = 0;
 
   for (let index = 0; index < points.length - 1; index++) {
-    total += distanceKm(
-      points[index],
-      points[index + 1]
-    );
+    total += distanceKm(points[index], points[index + 1]);
   }
 
   return total;
@@ -667,10 +652,7 @@ function nearestNeighbour(start, points) {
     let nearestDistance = Infinity;
 
     remaining.forEach((point, index) => {
-      const distance = distanceKm(
-        current,
-        point
-      );
+      const distance = distanceKm(current, point);
 
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -678,11 +660,7 @@ function nearestNeighbour(start, points) {
       }
     });
 
-    const next = remaining.splice(
-      nearestIndex,
-      1
-    )[0];
-
+    const next = remaining.splice(nearestIndex, 1)[0];
     ordered.push(next);
     current = next;
   }
@@ -692,7 +670,7 @@ function nearestNeighbour(start, points) {
 
 function improveWithTwoOpt(points) {
   if (points.length < 4) {
-    return points;
+    return [...points];
   }
 
   let improved = [...points];
@@ -715,9 +693,7 @@ function improveWithTwoOpt(points) {
       ) {
         const candidate = [
           ...improved.slice(0, start),
-          ...improved
-            .slice(start, end + 1)
-            .reverse(),
+          ...improved.slice(start, end + 1).reverse(),
           ...improved.slice(end + 1)
         ];
 
@@ -736,20 +712,15 @@ function improveWithTwoOpt(points) {
 }
 
 function optimizeWithFixedStart(start, points) {
-  const withoutStart = points.filter(
+  const remaining = points.filter(
     point =>
       !point.id ||
       String(point.id) !== String(start.id)
   );
 
-  const ordered = nearestNeighbour(
-    start,
-    withoutStart
-  );
-
   return improveWithTwoOpt([
     start,
-    ...ordered
+    ...nearestNeighbour(start, remaining)
   ]);
 }
 
@@ -770,10 +741,7 @@ function optimizeWithoutFixedStart(points) {
 
     const candidate = improveWithTwoOpt([
       candidateStart,
-      ...nearestNeighbour(
-        candidateStart,
-        remaining
-      )
+      ...nearestNeighbour(candidateStart, remaining)
     ]);
 
     const distance = routeDistance(candidate);
@@ -799,7 +767,7 @@ async function getCurrentPositionPoint() {
   }
 
   locationStatus.textContent =
-    "Recherche de la position actuelle...";
+    "Recherche de la position actuelle…";
 
   const position = await new Promise(
     (resolve, reject) => {
@@ -834,9 +802,7 @@ async function getCurrentPositionPoint() {
 
 async function buildOrderedRoute(optimize = true) {
   if (routeStops.length < 2) {
-    throw new Error(
-      "Ajoute au moins deux arrêts."
-    );
+    throw new Error("Ajoute au moins deux arrêts.");
   }
 
   const mode = getDepartureMode();
@@ -844,14 +810,9 @@ async function buildOrderedRoute(optimize = true) {
   if (mode === "current") {
     const start = await getCurrentPositionPoint();
 
-    if (!optimize) {
-      return [start, ...routeStops];
-    }
-
-    return optimizeWithFixedStart(
-      start,
-      routeStops
-    );
+    return optimize
+      ? optimizeWithFixedStart(start, routeStops)
+      : [start, ...routeStops];
   }
 
   if (mode === "stop") {
@@ -868,10 +829,7 @@ async function buildOrderedRoute(optimize = true) {
           String(selectedStartStop.id)
       );
 
-      return [
-        selectedStartStop,
-        ...remaining
-      ];
+      return [selectedStartStop, ...remaining];
     }
 
     return optimizeWithFixedStart(
@@ -880,19 +838,14 @@ async function buildOrderedRoute(optimize = true) {
     );
   }
 
-  if (optimize) {
-    return optimizeWithoutFixedStart(
-      routeStops
-    );
-  }
-
-  return [...routeStops];
+  return optimize
+    ? optimizeWithoutFixedStart(routeStops)
+    : [...routeStops];
 }
 
 async function optimizeRoute() {
   try {
     const ordered = await buildOrderedRoute(true);
-
     const mode = getDepartureMode();
 
     routeStops = ordered.filter(
@@ -906,10 +859,7 @@ async function optimizeRoute() {
     );
 
     updateRoute();
-
-    alert(
-      "L’ordre des étapes a été optimisé."
-    );
+    alert("L’ordre des étapes a été optimisé.");
   } catch (error) {
     alert(error.message);
   }
@@ -920,16 +870,13 @@ async function openGoogleRoute() {
     const points = await buildOrderedRoute(true);
 
     const origin = points[0];
-    const destination =
-      points[points.length - 1];
-
+    const destination = points[points.length - 1];
     const waypoints = points.slice(1, -1);
 
     const parameters = new URLSearchParams({
       api: "1",
       origin: `${origin.lat},${origin.lon}`,
-      destination:
-        `${destination.lat},${destination.lon}`,
+      destination: `${destination.lat},${destination.lon}`,
       travelmode: "driving"
     });
 
@@ -937,9 +884,7 @@ async function openGoogleRoute() {
       parameters.set(
         "waypoints",
         waypoints
-          .map(point =>
-            `${point.lat},${point.lon}`
-          )
+          .map(point => `${point.lat},${point.lon}`)
           .join("|")
       );
     }
@@ -979,12 +924,10 @@ async function openInRoute() {
         ? "action=opt&"
         : "";
 
-    const url =
+    window.location.href =
       `inroute://coordinates?` +
       action +
       locations.join("&");
-
-    window.location.href = url;
   } catch (error) {
     alert(error.message);
   }
@@ -1000,57 +943,46 @@ function escapeXml(text) {
 }
 
 function createGpx(points) {
-  const routePoints = points.map((point, index) => {
-    const name = point.nom || `Étape ${index + 1}`;
-    const descriptionParts = [];
+  const routePoints = points.map(
+    (point, index) => {
+      const name = point.nom || `Étape ${index + 1}`;
+      const descriptionParts = [];
 
-    if (point.commune) {
-      descriptionParts.push(point.commune);
-    }
+      if (point.commune) {
+        descriptionParts.push(point.commune);
+      }
 
-    if (point.reseau) {
-      descriptionParts.push(`Réseau ${point.reseau}`);
-    }
+      if (point.reseau) {
+        descriptionParts.push(`Réseau ${point.reseau}`);
+      }
 
-    const description = descriptionParts.join(" — ");
-
-    return `
+      return `
     <rtept lat="${Number(point.lat)}" lon="${Number(point.lon)}">
       <name>${escapeXml(name)}</name>
-      <desc>${escapeXml(description)}</desc>
+      <desc>${escapeXml(descriptionParts.join(" — "))}</desc>
     </rtept>`;
-  }).join("");
-
-  const creationDate = new Date().toISOString();
+    }
+  ).join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx
   version="1.1"
   creator="BreizhStops"
   xmlns="http://www.topografix.com/GPX/1/1"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd"
 >
   <metadata>
     <name>Itinéraire BreizhStops</name>
-    <desc>Itinéraire personnalisé créé avec BreizhStops</desc>
-    <time>${creationDate}</time>
+    <time>${new Date().toISOString()}</time>
   </metadata>
-
   <rte>
     <name>Itinéraire BreizhStops</name>
-    <desc>${points.length} points</desc>
     ${routePoints}
   </rte>
 </gpx>`;
 }
 
 function downloadFile(content, filename, mimeType) {
-  const blob = new Blob(
-    [content],
-    { type: mimeType }
-  );
-
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
 
@@ -1061,9 +993,7 @@ function downloadFile(content, filename, mimeType) {
   link.click();
   link.remove();
 
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function createGpxFilename() {
@@ -1075,29 +1005,28 @@ function createGpxFilename() {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
-  return `breizhstops-${year}-${month}-${day}-${hours}${minutes}.gpx`;
+  return (
+    `breizhstops-${year}-${month}-${day}-` +
+    `${hours}${minutes}.gpx`
+  );
 }
 
 async function exportGpx() {
   try {
     const points = await buildOrderedRoute(true);
 
-    const gpxContent = createGpx(points);
-    const filename = createGpxFilename();
-
     downloadFile(
-      gpxContent,
-      filename,
+      createGpx(points),
+      createGpxFilename(),
       "application/gpx+xml;charset=utf-8"
     );
   } catch (error) {
     alert(error.message);
   }
 }
+
 document
-  .querySelectorAll(
-    'input[name="departureMode"]'
-  )
+  .querySelectorAll('input[name="departureMode"]')
   .forEach(input => {
     input.addEventListener(
       "change",
@@ -1105,20 +1034,9 @@ document
     );
   });
 
-searchInput.addEventListener(
-  "input",
-  refreshSearch
-);
-
-networkFilter.addEventListener(
-  "change",
-  refreshSearch
-);
-
-cityFilter.addEventListener(
-  "change",
-  refreshSearch
-);
+searchInput.addEventListener("input", refreshSearch);
+networkFilter.addEventListener("change", refreshSearch);
+cityFilter.addEventListener("change", refreshSearch);
 
 startStopSearch.addEventListener(
   "input",
@@ -1165,7 +1083,3 @@ clearRouteBtn.addEventListener(
 
 handleDepartureModeChange();
 loadStops();
-
-    }
-  });
-}
